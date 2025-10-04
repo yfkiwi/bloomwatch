@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css'
 import bloomZones from '../data/bloomZones.js'
 import californiaData from '../data/california2017.json'
 import { getBloomStatus } from '../utils/bloomDetection'
+import { getNDVIForDate } from '../utils/dataExtender'
 
 // Fix default marker icon issue with Vite
 delete L.Icon.Default.prototype._getIconUrl
@@ -43,8 +44,8 @@ function Map({ currentDate, onLocationSelect, selectedLocation }) {
         
         if (!location) return null
 
-        // Find NDVI for current date
-        const dataPoint = location.ndviData.find(d => d.date === currentDate)
+        // Find NDVI for current date (including future dates)
+        const dataPoint = getNDVIForDate(location.ndviData, currentDate)
         const status = getBloomStatus(dataPoint?.ndvi || 0)
         
         return (

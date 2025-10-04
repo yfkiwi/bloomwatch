@@ -1,6 +1,7 @@
 import californiaData from '../data/california2017.json'
 import locationMetadata from '../data/locationMetadata.json'
 import { getBloomStatus, getDaysAdvanceWarning } from '../utils/bloomDetection'
+import { getNDVIForDate } from '../utils/dataExtender'
 import NDVIChart from './NDVIChart'
 
 function Sidebar({ locationId, currentDate }) {
@@ -25,7 +26,7 @@ function Sidebar({ locationId, currentDate }) {
     return <div className="w-96 bg-white p-6">Location not found</div>
   }
 
-  const dataPoint = location.ndviData.find(d => d.date === currentDate)
+  const dataPoint = getNDVIForDate(location.ndviData, currentDate)
   const status = getBloomStatus(dataPoint?.ndvi || 0)
   const daysWarning = getDaysAdvanceWarning(location.alertDate, location.peakBloomDate)
 

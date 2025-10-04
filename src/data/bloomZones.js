@@ -18,11 +18,12 @@ export default {
       "properties": {
         "id": "anza-borrego",
         "name": "Anza-Borrego Desert State Park",
-        "region": "Colorado Desert"
+        "region": "Southern California Desert",
+        "peakBloomDate": "2017-03-12"
       },
       "geometry": {
         "type": "Point",
-        "coordinates": [-116.3, 33.2]
+        "coordinates": [-116.25, 33.25]
       }
     },
     {

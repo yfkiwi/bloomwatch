@@ -25,10 +25,10 @@ function NDVIChart({ locationId, highlightDate }) {
           formatter={(value) => [value.toFixed(2), 'NDVI']}
         />
         <ReferenceLine 
-          y={0.6} 
+          y={0.22} 
           stroke="#ef4444" 
           strokeDasharray="5 5" 
-          label={{ value: 'Bloom Threshold', position: 'right', fontSize: 10 }}
+          label={{ value: 'Peak Bloom Threshold', position: 'right', fontSize: 10 }}
         />
         {highlightDate && (
           <ReferenceLine 

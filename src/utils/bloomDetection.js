@@ -1,27 +1,17 @@
 export function getBloomStatus(ndvi) {
-  if (ndvi >= 0.6) {
-    return {
-      status: 'peak',
-      color: '#22c55e',
-      label: '🟢 Peak Bloom'
-    }
-  }
-  if (ndvi >= 0.4) {
-    return {
-      status: 'emerging',
-      color: '#eab308',
-      label: '🟡 Emerging'
-    }
-  }
-  return {
-    status: 'none',
-    color: '#ef4444',
-    label: '🔴 No Bloom'
+  if (ndvi >= 0.22) {
+    return { label: 'Peak Bloom', color: '#22c55e' }; // Green
+  } else if (ndvi >= 0.18) {
+    return { label: 'Emerging Bloom', color: '#eab308' }; // Yellow
+  } else if (ndvi >= 0.12) {
+    return { label: 'Early Growth', color: '#f97316' }; // Orange
+  } else {
+    return { label: 'Dormant', color: '#8b4513' }; // Brown
   }
 }
 
 export function detectBloomAlert(ndviTimeSeries) {
-  const alert = ndviTimeSeries.find(d => d.ndvi >= 0.6)
+  const alert = ndviTimeSeries.find(d => d.ndvi >= 0.22)
   return alert ? alert.date : null
 }
 
@@ -32,10 +22,9 @@ export function getPeakBloom(ndviTimeSeries) {
 }
 
 export function getDaysAdvanceWarning(alertDate, peakDate) {
-  const alert = new Date(alertDate)
-  const peak = new Date(peakDate)
-  const diff = peak - alert
-  return Math.floor(diff / (1000 * 60 * 60 * 24))
+  const alert = new Date(alertDate);
+  const peak = new Date(peakDate);
+  return Math.round((peak - alert) / (1000 * 60 * 60 * 24));
 }
 
 export function filterDataByDateRange(data, startDate, endDate) {

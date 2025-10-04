@@ -1,0 +1,22 @@
+{
+    "id": "anza-borrego-2017",
+    "name": "Anza-Borrego Desert",
+    "region": "Southern California",
+    "coordinates": [-116.25, 33.25],
+    "peakBloomDate": "2017-03-12",
+    "alertDate": "2017-02-28",
+    "ndviData": [
+      {"date": "2017-01-01", "ndvi": 0.094, "temperature": 12, "precipitation": 0},
+      {"date": "2017-01-14", "ndvi": 0.186, "temperature": 14, "precipitation": 5},
+      {"date": "2017-01-31", "ndvi": 0.109, "temperature": 15, "precipitation": 8},
+      {"date": "2017-02-13", "ndvi": 0.211, "temperature": 16, "precipitation": 15},
+      {"date": "2017-03-02", "ndvi": 0.191, "temperature": 17, "precipitation": 3},
+      {"date": "2017-03-12", "ndvi": 0.236, "temperature": 18, "precipitation": 0},
+      {"date": "2017-04-04", "ndvi": 0.233, "temperature": 20, "precipitation": 2},
+      {"date": "2017-04-14", "ndvi": 0.226, "temperature": 22, "precipitation": 0},
+      {"date": "2017-04-29", "ndvi": 0.213, "temperature": 24, "precipitation": 0},
+      {"date": "2017-05-14", "ndvi": 0.213, "temperature": 26, "precipitation": 0},
+      {"date": "2017-05-19", "ndvi": 0.200, "temperature": 28, "precipitation": 0},
+      {"date": "2017-06-13", "ndvi": 0.174, "temperature": 30, "precipitation": 0}
+    ]
+  }
