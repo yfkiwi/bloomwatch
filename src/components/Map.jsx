@@ -1,7 +1,7 @@
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import bloomZones from '../data/bloomZones.geojson'
+import bloomZones from '../data/bloomZones.js'
 import californiaData from '../data/california2017.json'
 import { getBloomStatus } from '../utils/bloomDetection'
 

@@ -82,7 +82,7 @@ function Sidebar({ locationId, currentDate }) {
         <div>
           <h3 className="text-sm font-semibold text-gray-700 mb-2">Common Flowers</h3>
           <div className="flex flex-wrap gap-2">
-            {metadata.flowerTypes.map(flower => (
+            {location.flowerTypes.map(flower => (
               <span 
                 key={flower}
                 className="px-3 py-1 bg-pink-100 text-pink-700 rounded-full text-xs"
