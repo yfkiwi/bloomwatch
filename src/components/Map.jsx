@@ -564,14 +564,6 @@ function Map({ currentDate, onLocationSelect, selectedLocation }) {
                 <div className="w-4 h-4 rounded-full" style={{ backgroundColor: '#fbbf24' }}></div>
                 <span>Blooming</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: '#86efac' }}></div>
-                <span>Emerging</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: '#9ca3af' }}></div>
-                <span>Dormant</span>
-              </div>
             </div>
           </div>
         </div>
