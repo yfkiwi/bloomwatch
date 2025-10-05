@@ -28,6 +28,9 @@ const Legend = () => {
     }
   ];
 
+  // Hide "Emerging" (green) and "Dormant" (gray) rows without affecting other features
+  const visibleItems = legendItems.filter(item => item.label !== 'Emerging' && item.label !== 'Dormant')
+
   return (
     <div className="absolute bottom-4 right-4 z-30">
       {/* Mobile: Collapsed icon */}
@@ -68,7 +71,7 @@ const Legend = () => {
               </button>
             </div>
             <div className="space-y-2">
-              {legendItems.map((item, index) => (
+              {visibleItems.map((item, index) => (
                 <div key={index} className="flex items-center space-x-2">
                   <div 
                     className="w-3 h-3 rounded-sm flex-shrink-0"
@@ -92,7 +95,7 @@ const Legend = () => {
       <div className="hidden md:block bg-white/90 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg p-3">
         <h3 className="text-sm font-semibold text-gray-800 mb-2">Bloom Status</h3>
         <div className="space-y-2">
-          {legendItems.map((item, index) => (
+          {visibleItems.map((item, index) => (
             <div key={index} className="flex items-center space-x-2">
               <div 
                 className="w-3 h-3 rounded-sm flex-shrink-0"
