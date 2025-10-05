@@ -48,3 +48,95 @@
   background: #94a3b8;
 }
 
+/* Bloom Status Card Styles */
+.bloom-status-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 16px 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.metric-label {
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+
+.metric-status {
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.metric-status.wet { 
+  background: #dbeafe; 
+  color: #1e40af; 
+}
+
+.metric-status.dry { 
+  background: #fef3c7; 
+  color: #92400e; 
+}
+
+.metric-status.green { 
+  background: #d1fae5; 
+  color: #065f46; 
+}
+
+.metric-status.low { 
+  background: #fee2e2; 
+  color: #991b1b; 
+}
+
+.bloom-verdict {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.bloom-verdict.confirmed {
+  background: #d1fae5;
+  border: 2px solid #10b981;
+}
+
+.bloom-verdict.no-bloom {
+  background: #f3f4f6;
+  border: 2px solid #d1d5db;
+}
+
+.verdict-badge {
+  font-size: 16px;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 8px;
+}
+
+/* Disabled marker styles */
+.disabled-marker {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.disabled-marker:hover {
+  opacity: 0.7;
+}
+

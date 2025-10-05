@@ -1,14 +1,18 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Area, ComposedChart } from 'recharts'
-import californiaData from '../data/california2017.json'
+import { LOCATION_CONFIGS } from '../config/locationConfig'
 
-function NDVIChart({ locationId, highlightDate }) {
-  const location = californiaData.locations.find(l => l.id === locationId)
+function NDVIChart({ locationId, highlightDate, ndviData, dataSource }) {
+  // 检查 ndviData 是否存在
+  if (!ndviData || !Array.isArray(ndviData) || ndviData.length === 0) {
+    console.error('NDVIChart: Invalid data received', ndviData);
+    return <div>No data available for chart</div>
+  }
   
-  if (!location) return <div>No data</div>
+  console.log('NDVIChart rendering with', ndviData.length, 'data points');
 
   // Calculate time window around highlightDate with data sampling
   const getContextualData = () => {
-    if (!highlightDate) return location.ndviData
+    if (!highlightDate) return ndviData
     
     const currentDate = new Date(highlightDate)
     const currentYear = currentDate.getFullYear()
@@ -17,10 +21,13 @@ function NDVIChart({ locationId, highlightDate }) {
     const startYear = currentYear
     const endYear = currentYear + 1
     
-    const filteredData = location.ndviData.filter(dataPoint => {
+    const filteredData = ndviData.filter(dataPoint => {
+      if (!dataPoint || !dataPoint.date) return false; // Safety check
       const pointYear = new Date(dataPoint.date).getFullYear()
       return pointYear >= startYear && pointYear <= endYear
     })
+    
+    console.log('Filtered to', filteredData.length, 'points for year range', startYear, '-', endYear);
 
     // Sample data more intelligently - take key points for each month
     const sampledData = []
@@ -46,8 +53,8 @@ function NDVIChart({ locationId, highlightDate }) {
       sampledData.push(midMonth)
     })
     
-    // Always include the highlight date if it exists
-    const highlightPoint = filteredData.find(d => d.date === highlightDate)
+    // CRITICAL: Always include the highlight date if it exists in full data
+    const highlightPoint = ndviData.find(d => d.date === highlightDate)
     if (highlightPoint && !sampledData.find(d => d.date === highlightDate)) {
       sampledData.push(highlightPoint)
       sampledData.sort((a, b) => new Date(a.date) - new Date(b.date))
@@ -58,15 +65,21 @@ function NDVIChart({ locationId, highlightDate }) {
 
   const contextualData = getContextualData()
 
-  // Add bloom window data for shaded region
+  // Add bloom window data for shaded region - use location-specific threshold
+  const location = LOCATION_CONFIGS[locationId];
+  const peakBloomThreshold = location?.thresholds?.peakBloom || 0.22;
+  
   const dataWithBloomWindow = contextualData.map(point => ({
     ...point,
-    bloomThreshold: 0.22,
-    bloomWindow: Math.max(0, point.ndvi - 0.22)
+    bloomThreshold: peakBloomThreshold,
+    bloomWindow: Math.max(0, point.ndvi - peakBloomThreshold)
   }))
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
+      const data = payload[0].payload; // Get the actual data point
+      const ndviValue = data.ndvi; // Use the actual NDVI value from data
+      
       return (
         <div className="bg-white border border-gray-300 rounded-lg p-3 shadow-lg">
           <p className="font-medium text-sm">
@@ -77,10 +90,15 @@ function NDVIChart({ locationId, highlightDate }) {
             })}
           </p>
           <p className="text-sm text-gray-600">
-            NDVI: <span className="font-semibold text-green-600">{payload[0].value.toFixed(2)}</span>
+            NDVI: <span className="font-semibold text-green-600">{ndviValue?.toFixed(3) || 'N/A'}</span>
           </p>
+          {data.bloom_prob !== undefined && (
+            <p className="text-xs text-blue-600 mt-1">
+              Bloom probability: {(data.bloom_prob * 100).toFixed(0)}%
+            </p>
+          )}
           <p className="text-xs text-gray-500">
-            {payload[0].value >= 0.22 ? '🌸 Peak Bloom Zone' : '🌱 Below Bloom Threshold'}
+            {ndviValue >= peakBloomThreshold ? '🌸 Peak Bloom Zone' : '🌱 Below Bloom Threshold'}
           </p>
         </div>
       )
@@ -88,8 +106,23 @@ function NDVIChart({ locationId, highlightDate }) {
     return null
   }
 
+  // Find the selected date point for display
+  const selectedPoint = contextualData.find(d => d.date === highlightDate);
+  
   return (
     <div>
+      {/* Show data source indicator */}
+      {dataSource === 'forecast' && (
+        <div className="forecast-indicator" style={{
+          fontSize: '12px',
+          color: '#3b82f6',
+          marginBottom: '8px',
+          fontWeight: 600
+        }}>
+          🔮 AI Model Prediction
+        </div>
+      )}
+      
       <ResponsiveContainer width="100%" height={250}>
         <ComposedChart data={dataWithBloomWindow} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -122,20 +155,28 @@ function NDVIChart({ locationId, highlightDate }) {
             stackId="1"
           />
           
-          {/* Peak bloom threshold line */}
-          <ReferenceLine 
-            y={0.22} 
-            stroke="#22c55e" 
-            strokeWidth={2}
-            strokeDasharray="8 4"
-            label={{ 
-              value: 'Peak Bloom Threshold', 
-              position: 'right', 
-              fontSize: 10,
-              fill: '#22c55e',
-              offset: 10
-            }}
-          />
+          {/* Peak bloom threshold line - use location-specific threshold */}
+          {(() => {
+            // Get location-specific threshold
+            const location = LOCATION_CONFIGS[locationId];
+            const threshold = location?.thresholds?.peakBloom || 0.22;
+            
+            return (
+              <ReferenceLine 
+                y={threshold} 
+                stroke="#22c55e" 
+                strokeWidth={2}
+                strokeDasharray="8 4"
+                label={{ 
+                  value: `Peak Bloom (${threshold})`, 
+                  position: 'right', 
+                  fontSize: 10,
+                  fill: '#22c55e',
+                  offset: 10
+                }}
+              />
+            );
+          })()}
           
           {/* Selected date marker */}
           {highlightDate && (

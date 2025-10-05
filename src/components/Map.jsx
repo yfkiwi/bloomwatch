@@ -3,10 +3,13 @@ import { MapContainer, TileLayer, CircleMarker, Circle, Tooltip, useMap } from '
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.heat'
-import bloomZones from '../data/bloomZones.js'
-import californiaData from '../data/california2017.json'
-import { getBloomStatus } from '../utils/bloomDetection'
-import { getNDVIForDate } from '../utils/dataExtender'
+//import bloomZones from '../data/bloomZones.js'
+// Removed californiaData import - using location-specific data instead
+import { getBloomStatus } from '../utils/bloomVisualization'
+import { getNDVIForDate } from '../utils/dataHelpers'
+import { getBloomOverlayOpacity, getBloomColor, getBloomIntensity } from '../utils/bloomVisualization'
+import { LOCATION_CONFIGS } from '../config/locationConfig'
+import { loadLocationData } from '../services/locationDataService'
 
 // Fix default marker icon issue with Vite
 delete L.Icon.Default.prototype._getIconUrl
@@ -161,7 +164,14 @@ const SmoothBloomHeatmap = ({ selectedDate, realLocations }) => {
     
     allPoints.forEach(point => {
       console.log(`Point ${point.id || 'unknown'} has NDVI ${point.ndvi.toFixed(3)}`);
-      if (point.ndvi >= 0.05) { // Lowered threshold from 0.06 to 0.05
+      
+      // Use dynamic bloom intensity with seasonal filtering
+      const bloomIntensity = getBloomIntensity(point.ndvi, selectedDate);
+      const bloomOpacity = getBloomOverlayOpacity(point.ndvi, selectedDate, point.parentLocation || point.id);
+      
+      console.log(`Point ${point.id || 'unknown'} - bloom intensity: ${bloomIntensity.toFixed(3)}, opacity: ${bloomOpacity.toFixed(3)}`);
+      
+      if (bloomOpacity > 0) { // Only show if seasonal filter allows
         hasValidPoints = true;
         console.log(`Point ${point.id || 'unknown'} - generating heat points`);
         // Each point generates 40 spread points for smooth coverage
@@ -175,11 +185,11 @@ const SmoothBloomHeatmap = ({ selectedDate, realLocations }) => {
           heatData.push([
             point.lat + r * Math.cos(theta),
             point.lng + r * Math.sin(theta),
-            point.ndvi * 1.5  // Intensity
+            bloomIntensity  // Use dynamic intensity
           ]);
         }
       } else {
-        console.log(`Point ${point.id || 'unknown'} - SKIPPED (below 0.06 threshold)`);
+        console.log(`Point ${point.id || 'unknown'} - SKIPPED (seasonal filter or below threshold)`);
       }
     });
     
@@ -201,21 +211,21 @@ const SmoothBloomHeatmap = ({ selectedDate, realLocations }) => {
 
     console.log('Total heat data points:', heatData.length);
 
-    // Create heat layer - optimized for soft effect
+    // Create heat layer - optimized for dynamic bloom colors
     if (heatData.length > 0) {
       console.log('Creating heatmap layer...');
       heatLayerRef.current = L.heatLayer(heatData, {
         radius: 60,          // Even larger radius for better coverage
         blur: 30,            // Reduced blur for more visible effect
-        max: 0.5,            // Increased max for stronger colors
-        minOpacity: 0.2,     // Increased minimum opacity
+        max: 1.6,            // Increased max for stronger colors (matches bloom intensity scale)
+        minOpacity: 0.15,    // Increased minimum opacity
         gradient: {
-          0.0: 'rgba(255, 192, 203, 0)',      // Transparent
-          0.3: 'rgba(255, 182, 193, 0.3)',    // Light pink 30%
-          0.5: 'rgba(255, 160, 186, 0.5)',    // Medium pink 50%
-          0.7: 'rgba(255, 105, 180, 0.7)',    // Bright pink 70%
-          0.9: 'rgba(236, 72, 153, 0.85)',    // Deep pink 85%
-          1.0: 'rgba(219, 39, 119, 0.9)'      // Magenta 90%
+          0.0: 'rgba(254, 243, 199, 0)',      // Transparent pale yellow
+          0.2: 'rgba(254, 243, 199, 0.3)',    // Pale yellow (early greening)
+          0.4: 'rgba(253, 230, 138, 0.5)',    // Light yellow
+          0.6: 'rgba(251, 191, 36, 0.6)',     // Yellow-orange
+          0.8: 'rgba(251, 146, 60, 0.7)',     // Orange-pink
+          1.0: 'rgba(236, 72, 153, 0.8)'      // Hot pink (peak bloom)
         }
       });
       
@@ -235,56 +245,135 @@ const SmoothBloomHeatmap = ({ selectedDate, realLocations }) => {
   return null;
 };
 
-// Clickable Real Location Markers
+// Clickable Real Location Markers with Real Data
 const RealLocationMarkers = ({ realLocations, selectedDate, onLocationClick }) => {
+  const [locationData, setLocationData] = useState({});
+  
+  // Load real data for all locations
+  useEffect(() => {
+    console.log('=== Loading Real Location Data ===');
+    const loadAllLocationData = async () => {
+      const dataPromises = realLocations.map(async (location) => {
+        if (location.disabled) return null;
+        
+        try {
+          console.log(`Loading data for ${location.id}`);
+          const data = await loadLocationData(location.id);
+          console.log(`Loaded ${data.length} records for ${location.id}`);
+          return { locationId: location.id, data };
+        } catch (error) {
+          console.error(`Error loading data for ${location.id}:`, error);
+          return null;
+        }
+      });
+      
+      const results = await Promise.all(dataPromises);
+      const dataMap = {};
+      results.forEach(result => {
+        if (result) {
+          dataMap[result.locationId] = result.data;
+        }
+      });
+      
+      console.log('All location data loaded:', Object.keys(dataMap));
+      setLocationData(dataMap);
+    };
+    
+    loadAllLocationData();
+  }, [realLocations]);
+  
   // Convert string to Date object if needed
   const dateObj = selectedDate instanceof Date ? selectedDate : new Date(selectedDate);
   
   return (
     <>
       {realLocations.map(location => {
-        const ndvi = calculateNDVIForDate(location, dateObj);
-        const isActive = ndvi >= 0.12; // Whether in bloom period
+        // Get real NDVI data for this location
+        const ndviData = locationData[location.id];
+        let ndvi = 0;
+        
+        if (ndviData && ndviData.length > 0) {
+          ndvi = getNDVIForDate(selectedDate, ndviData);
+          console.log(`${location.id} - Real NDVI for ${selectedDate}: ${ndvi}`);
+        } else {
+          console.log(`${location.id} - No data available, using synthetic NDVI`);
+          ndvi = calculateNDVIForDate(location, dateObj);
+        }
+        
+        const bloomOpacity = getBloomOverlayOpacity(ndvi, dateObj, location.id);
+        const bloomColor = getBloomColor(ndvi, location.id);
+        const isActive = bloomOpacity > 0; // Whether in bloom period (seasonal + NDVI filter)
+        const isDisabled = location.disabled;
+        
+        // Create disabled icon for disabled locations
+        const disabledIcon = L.divIcon({
+          className: 'custom-marker disabled',
+          html: '<div style="background: #d1d5db; opacity: 0.5; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; color: #6b7280; font-size: 12px;">📍</div>',
+          iconSize: [20, 20]
+        });
         
         return (
           <React.Fragment key={location.id}>
-            {/* Large transparent clickable area */}
-            <Circle
-              center={[location.lat, location.lng]}
-              radius={80000}  // 80km click radius
-              pathOptions={{
-                fillColor: '#EC4899',
-                fillOpacity: 0,
-                color: 'transparent',
-                weight: 0
-              }}
-              eventHandlers={{
-                click: () => onLocationClick(location.id),
-                mouseover: (e) => {
-                  e.target.setStyle({ 
-                    fillOpacity: 0.08,
-                    fillColor: '#FF69B4'
-                  });
-                },
-                mouseout: (e) => {
-                  e.target.setStyle({ fillOpacity: 0 });
-                }
-              }}
-            />
+            {/* Large transparent clickable area - only for enabled locations */}
+            {!isDisabled && (
+              <Circle
+                center={[location.lat, location.lng]}
+                radius={80000}  // 80km click radius
+                pathOptions={{
+                  fillColor: '#EC4899',
+                  fillOpacity: 0,
+                  color: 'transparent',
+                  weight: 0
+                }}
+                eventHandlers={{
+                  click: () => onLocationClick(location.id),
+                  mouseover: (e) => {
+                    e.target.setStyle({ 
+                      fillOpacity: 0.08,
+                      fillColor: '#FF69B4'
+                    });
+                  },
+                  mouseout: (e) => {
+                    e.target.setStyle({ fillOpacity: 0 });
+                  }
+                }}
+              />
+            )}
+
+            {/* Dynamic bloom overlay circle */}
+            {!isDisabled && isActive && (
+              <Circle
+                center={[location.lat, location.lng]}
+                radius={30000}
+                pathOptions={{
+                  fillColor: bloomColor,
+                  fillOpacity: bloomOpacity,
+                  color: bloomColor,
+                  weight: 1,
+                  opacity: bloomOpacity * 0.5
+                }}
+              />
+            )}
 
             {/* Center marker point */}
             <CircleMarker
               center={[location.lat, location.lng]}
               radius={7}
               pathOptions={{
-                fillColor: '#ffffff',
+                fillColor: isDisabled ? '#d1d5db' : '#ffffff',
                 fillOpacity: 1,
-                color: isActive ? '#EC4899' : '#9ca3af',
+                color: isDisabled ? '#9ca3af' : (isActive ? bloomColor : '#9ca3af'),
                 weight: 3,
-                className: isActive ? 'active-marker' : 'dormant-marker'
+                className: isDisabled ? 'disabled-marker' : (isActive ? 'active-marker' : 'dormant-marker')
               }}
               eventHandlers={{
-                click: () => onLocationClick(location.id)
+                click: () => {
+                  if (isDisabled) {
+                    alert(`${location.name}: ${location.disabledReason}`);
+                    return;
+                  }
+                  onLocationClick(location.id);
+                }
               }}
             >
               <Tooltip 
@@ -296,6 +385,11 @@ const RealLocationMarkers = ({ realLocations, selectedDate, onLocationClick }) =
                 <div className="font-semibold text-sm">
                   {location.name}
                 </div>
+                {isDisabled && (
+                  <div style={{color: '#ef4444', fontSize: '12px', marginTop: '4px'}}>
+                    ⚠️ {location.disabledReason}
+                  </div>
+                )}
               </Tooltip>
             </CircleMarker>
           </React.Fragment>
@@ -305,14 +399,7 @@ const RealLocationMarkers = ({ realLocations, selectedDate, onLocationClick }) =
   );
 };
 
-// Color function based on NDVI
-const getBloomColor = (ndvi) => {
-  if (ndvi < 0.08) return '#9ca3af';  // Gray - dormant
-  if (ndvi < 0.12) return '#86efac';  // Light green - emerging
-  if (ndvi < 0.18) return '#fbbf24';  // Yellow - blooming
-  return '#f8b5d1';                    // Soft pink - peak bloom
-};
-
+// Legacy status text function - keeping for backward compatibility with markers
 const getBloomStatusText = (ndvi) => {
   if (ndvi < 0.08) return 'Dormant';
   if (ndvi < 0.12) return 'Emerging';
@@ -425,27 +512,18 @@ const BloomExplosion = ({ center, isActive }) => {
 };
 
 function Map({ currentDate, onLocationSelect, selectedLocation }) {
-  // Define the 3 real locations with proper coordinates
-  const realLocations = [
-    {
-      id: 'anza-borrego',
-      name: 'Anza-Borrego Desert',
-      lat: 33.2584,
-      lng: -116.3990
-    },
-    {
-      id: 'carrizo-plain', 
-      name: 'Carrizo Plain',
-      lat: 35.1682,
-      lng: -119.5871
-    },
-    {
-      id: 'death-valley',
-      name: 'Death Valley',
-      lat: 36.5323,
-      lng: -116.9325
-    }
-  ];
+  // Get location configurations from new config
+  const locationConfigs = LOCATION_CONFIGS;
+  
+  // Convert location configs to the format expected by existing code
+  const realLocations = Object.values(locationConfigs).map(config => ({
+    id: config.id,
+    name: config.name.split(' ')[0] + ' ' + config.name.split(' ')[1], // Short name
+    lat: config.coords[0], // latitude
+    lng: config.coords[1], // longitude
+    disabled: config.disabled,
+    disabledReason: config.disabledReason
+  }));
 
   return (
     <div className="relative h-full w-full">

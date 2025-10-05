@@ -83,7 +83,7 @@ export async function getDataForDate(targetDate) {
   const predictionData = await loadPredictionData()
   
   const date = new Date(targetDate)
-  const cutoffDate = new Date('2025-10-04')
+  const cutoffDate = new Date()
   
   // If date is before cutoff, use historical data
   if (date <= cutoffDate) {
@@ -122,7 +122,7 @@ export async function getAllAvailableDates() {
  */
 export function isPredictionDate(date) {
   const targetDate = new Date(date)
-  const cutoffDate = new Date('2025-10-04')
+  const cutoffDate = new Date()
   return targetDate > cutoffDate
 }
 
@@ -130,12 +130,12 @@ export function isPredictionDate(date) {
  * Get the cutoff date between historical and prediction data
  */
 export function getCutoffDate() {
-  return '2025-10-04'
+  return new Date().toISOString().split('T')[0]
 }
 
 /**
  * Get today's date (Oct 4, 2025)
  */
 export function getTodayDate() {
-  return '2025-10-04'
+  return new Date().toISOString().split('T')[0]
 }

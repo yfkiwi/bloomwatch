@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { isPredictionDate, getCutoffDate, getTodayDate } from '../services/dataService'
 
 function TimeSlider({ currentDate, onChange, showFullHistory, onToggleHistory }) {
-  const TODAY = new Date('2025-10-04')
+  const TODAY = new Date()
   const PREDICTION_END = new Date('2025-08-31')
   
   // Timeline range calculator

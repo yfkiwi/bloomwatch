@@ -1,10 +1,14 @@
-import californiaData from '../data/california2017.json'
 import locationMetadata from '../data/locationMetadata.json'
-import { getBloomStatus, getDaysAdvanceWarning } from '../utils/bloomDetection'
-import { getNDVIForDate } from '../utils/dataExtender'
+import { getBloomStatus } from '../utils/bloomVisualization'
+import { getNDVIForDate, isHistoricalDate, getMergedData } from '../utils/dataHelpers'
+import { loadLocationData } from '../services/locationDataService'
 import { getDataForDate, isPredictionDate } from '../services/dataService'
 import NDVIChart from './NDVIChart'
 import { useState, useEffect } from 'react'
+import { LOCATION_CONFIGS } from '../config/locationConfig'
+import { fetchPrecipitationWithTimeout } from '../utils/precipitationAPI'
+import BloomDataTab from './BloomDataTab'
+import PhotoGalleryTab from './PhotoGalleryTab'
 
 // Color function based on NDVI
 const getBloomColor = (ndvi) => {
@@ -29,7 +33,7 @@ const MetricCard = ({ label, value, color }) => (
 );
 
 const SidebarContent = ({ selectedDate, locationData, location, metadata }) => {
-  const TODAY = new Date('2025-10-04');
+  const TODAY = new Date(); // Use actual current date
   const PREDICTION_END = new Date('2025-08-31');
   const isHistorical = selectedDate <= TODAY;
   const isPrediction = selectedDate > TODAY && selectedDate <= PREDICTION_END;
@@ -268,17 +272,83 @@ const SidebarContent = ({ selectedDate, locationData, location, metadata }) => {
 
 function Sidebar({ locationId, currentDate }) {
   const [dataPoint, setDataPoint] = useState(null)
+  const [ndviData, setNdvIData] = useState(null) // Store full data array
   const [isLoading, setIsLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState('bloom')
+  const [dataSource, setDataSource] = useState('historical')
+  const [dataError, setDataError] = useState(null)
+  const [precipData, setPrecipData] = useState({
+    loading: true,
+    data: null,
+    error: false
+  })
 
   useEffect(() => {
     if (locationId && currentDate) {
       setIsLoading(true)
-      getDataForDate(currentDate).then(result => {
-        setDataPoint(result.data)
-        setIsLoading(false)
-      })
+      console.log(`=== Sidebar Data Loading ===`);
+      console.log(`Loading data for location: ${locationId}, date: ${currentDate}`);
+      
+      // Use new location-specific data loading
+      loadLocationData(locationId).then(data => {
+        console.log(`Loaded ${data.length} data points for ${locationId}`);
+        
+        // Determine if this is historical or forecast data
+        const { data: mergedData, source, error } = getMergedData(data, [], currentDate);
+        
+        console.log(`Using ${source} data for ${currentDate}`);
+        
+        // Store full data array for BloomDataTab
+        setNdvIData(mergedData);
+        setDataSource(source);
+        setDataError(error);
+        
+        // Get NDVI for current date
+        const currentNDVI = getNDVIForDate(currentDate, mergedData);
+        console.log(`Current NDVI for ${currentDate}: ${currentNDVI}`);
+        
+        // Create data point in expected format
+        const dataPoint = {
+          date: currentDate,
+          ndvi: currentNDVI,
+          locationId: locationId
+        };
+        
+        setDataPoint(dataPoint);
+        setIsLoading(false);
+      }).catch(error => {
+        console.error(`Error loading data for ${locationId}:`, error);
+        setDataPoint(null);
+        setNdvIData(null);
+        setDataSource('historical');
+        setDataError('Failed to load data');
+        setIsLoading(false);
+      });
     }
   }, [currentDate, locationId])
+
+  // Fetch precipitation when location changes
+  useEffect(() => {
+    if (!locationId) return;
+    
+    const location = LOCATION_CONFIGS[locationId];
+    if (!location || location.disabled) return;
+    
+    setPrecipData({ loading: true, data: null, error: false });
+    
+    fetchPrecipitationWithTimeout(
+      location.coords[1],
+      location.coords[0],
+      '20170101',
+      '20251001'
+    ).then(result => {
+      setPrecipData({
+        loading: false,
+        data: result.success ? result.data : null,
+        error: !result.success
+      });
+    });
+  }, [locationId]);
 
   if (!locationId) {
     return (
@@ -294,7 +364,7 @@ function Sidebar({ locationId, currentDate }) {
     )
   }
 
-  const location = californiaData.locations.find(l => l.id === locationId)
+  const location = LOCATION_CONFIGS[locationId] || californiaData.locations.find(l => l.id === locationId)
   const metadata = locationMetadata[locationId]
   
   if (!location || !metadata) {
@@ -316,12 +386,41 @@ function Sidebar({ locationId, currentDate }) {
   return (
     <aside className="w-96 bg-white border-l border-gray-200 overflow-y-auto">
       <div className="p-6">
-        <SidebarContent 
-          selectedDate={currentDate}
-          locationData={dataPoint}
-          location={location}
-          metadata={metadata}
-        />
+        {/* Tab Navigation */}
+        <div className="tab-nav">
+          <button
+            className={`tab-button ${activeTab === 'bloom' ? 'active' : ''}`}
+            onClick={() => setActiveTab('bloom')}
+          >
+            🌸 Bloom Info
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'photos' ? 'active' : ''}`}
+            onClick={() => setActiveTab('photos')}
+          >
+            📸 Photos
+          </button>
+        </div>
+        
+        {/* Tab Content */}
+        <div className="tab-content">
+          {activeTab === 'bloom' ? (
+            <BloomDataTab
+              location={location}
+              date={currentDate}
+              ndviData={ndviData}
+              precipData={precipData}
+              dataSource={dataSource}
+              dataError={dataError}
+            />
+          ) : (
+            <PhotoGalleryTab
+              location={location}
+              date={currentDate}
+              ndviData={ndviData}
+            />
+          )}
+        </div>
       </div>
     </aside>
   )
