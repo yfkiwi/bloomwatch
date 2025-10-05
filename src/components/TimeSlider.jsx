@@ -10,12 +10,12 @@ function TimeSlider({ currentDate, onChange, showFullHistory, onToggleHistory })
     if (showFullHistory) {
       return {
         start: new Date('2017-01-01'),
-        end: new Date('2025-12-31')
+        end: new Date('2026-6-31')
       };
     }
     return {
       start: new Date('2024-01-01'),
-      end: new Date('2025-12-31')
+      end: new Date('2026-6-31')
     };
   };
 

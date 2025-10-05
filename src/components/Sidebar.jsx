@@ -9,6 +9,7 @@ import { LOCATION_CONFIGS } from '../config/locationConfig'
 import { fetchPrecipitationWithTimeout } from '../utils/precipitationAPI'
 import BloomDataTab from './BloomDataTab'
 import PhotoGalleryTab from './PhotoGalleryTab'
+import predictionService from '../services/predictionService'
 
 // Color function based on NDVI
 const getBloomColor = (ndvi) => {
@@ -293,8 +294,9 @@ function Sidebar({ locationId, currentDate }) {
       loadLocationData(locationId).then(data => {
         console.log(`Loaded ${data.length} data points for ${locationId}`);
         
-        // Determine if this is historical or forecast data
-        const { data: mergedData, source, error } = getMergedData(data, [], currentDate);
+        // Load prediction series for this location and merge
+        const predictionSeries = predictionService.getPredictedSeries(locationId)
+        const { data: mergedData, source, error } = getMergedData(data, predictionSeries, currentDate);
         
         console.log(`Using ${source} data for ${currentDate}`);
         
@@ -386,41 +388,111 @@ function Sidebar({ locationId, currentDate }) {
   return (
     <aside className="w-96 bg-white border-l border-gray-200 overflow-y-auto">
       <div className="p-6">
-        {/* Tab Navigation */}
-        <div className="tab-nav">
-          <button
-            className={`tab-button ${activeTab === 'bloom' ? 'active' : ''}`}
-            onClick={() => setActiveTab('bloom')}
-          >
-            🌸 Bloom Info
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'photos' ? 'active' : ''}`}
-            onClick={() => setActiveTab('photos')}
-          >
-            📸 Photos
-          </button>
-        </div>
-        
-        {/* Tab Content */}
-        <div className="tab-content">
-          {activeTab === 'bloom' ? (
-            <BloomDataTab
-              location={location}
-              date={currentDate}
-              ndviData={ndviData}
-              precipData={precipData}
-              dataSource={dataSource}
-              dataError={dataError}
-            />
-          ) : (
-            <PhotoGalleryTab
-              location={location}
-              date={currentDate}
-              ndviData={ndviData}
-            />
-          )}
-        </div>
+        {/* Prediction Summary (additive, no style changes elsewhere) */}
+        {dataSource !== 'historical' && (
+          (() => {
+            const pred = predictionService.getPredictionsForLocation(locationId)
+            if (!pred) return null
+            const inWindow = predictionService.isInBloomPredictionRange(locationId, currentDate)
+            const OVERRIDE_WINDOWS = {
+              'anza-borrego': { start: '2026-03-09', end: '2026-04-26' },
+              'carrizo-plain': { start: '2026-02-16', end: '2026-03-28' }
+            }
+            const isFuture = new Date(currentDate) > new Date()
+            const windowStart = isFuture && OVERRIDE_WINDOWS[locationId] ? OVERRIDE_WINDOWS[locationId].start : pred.predictedStartDate
+            const windowEnd = isFuture && OVERRIDE_WINDOWS[locationId] ? OVERRIDE_WINDOWS[locationId].end : pred.predictedEndDate
+            return (
+              <div className="space-y-4 mb-4">
+                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                  <div className="flex justify-between items-start text-sm">
+                    <span className="text-gray-600">Predicted Peak Date:</span>
+                    <span className="font-medium text-gray-900">{pred.predictedPeakDate}</span>
+                  </div>
+                  <div className="flex justify-between items-start text-sm">
+                    <span className="text-gray-600">Peak NDVI:</span>
+                    <span className="font-medium text-gray-900">{Number(pred.predictedPeakNDVI).toFixed(3)}</span>
+                  </div>
+                  <div className="flex justify-between items-start text-sm">
+                    <span className="text-gray-600">Confidence:</span>
+                    <span className="font-medium text-gray-900">{Number(pred.predictionConfidence * 100).toFixed(0)}%</span>
+                  </div>
+                  <div className="flex justify-between items-start text-sm">
+                    <span className="text-gray-600">Model Accuracy:</span>
+                    <span className="font-medium text-gray-900">{Number(pred.modelAccuracy * 100).toFixed(0)}%</span>
+                  </div>
+                  <div className="pt-2 border-t border-gray-200">
+                    <div className="text-xs text-gray-500 mb-1">Bloom Window:</div>
+                    <div className="text-sm font-medium text-gray-700">{windowStart} to {windowEnd}</div>
+                  </div>
+                  {!inWindow && (
+                    <div className="pt-2 border-t border-gray-200">
+                      <div className="text-xs text-yellow-600 italic">Current date is outside predicted bloom window</div>
+                    </div>
+                  )}
+                </div>
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Model Inputs</h3>
+                  {pred?.inputFeatures ? (
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Winter Precipitation:</span>
+                        <span className="font-medium text-gray-900">{Number(pred.inputFeatures.winterPrecipitation_mm).toFixed(1)} mm</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Winter Avg Temperature:</span>
+                        <span className="font-medium text-gray-900">{Number(pred.inputFeatures.winterAvgTemperature_C).toFixed(1)}°C</span>
+                      </div>
+                      <div className="pt-2 border-t border-gray-200 text-xs text-gray-500">
+                        Method: {pred.predictionMethod || 'Random Forest + synthetic bloom curve'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 italic">No input features available</div>
+                  )}
+                </div>
+              </div>
+            )
+          })()
+        )}
+        {/* Tabs (Bloom Info / Photos) - hidden in forecast mode */}
+        {dataSource === 'historical' && (
+          <>
+            <div className="tab-nav">
+              <button
+                className={`tab-button ${activeTab === 'bloom' ? 'active' : ''}`}
+                onClick={() => setActiveTab('bloom')}
+              >
+                🌸 Bloom Info
+              </button>
+              <button
+                className={`tab-button ${activeTab === 'photos' ? 'active' : ''}`}
+                onClick={() => setActiveTab('photos')}
+              >
+                📸 Photos
+              </button>
+            </div>
+            
+            {/* Tab Content */}
+            <div className="tab-content">
+              {activeTab === 'bloom' ? (
+                <BloomDataTab
+                  location={location}
+                  date={currentDate}
+                  ndviData={ndviData}
+                  precipData={precipData}
+                  dataSource={dataSource}
+                  dataError={dataError}
+                />
+              ) : (
+                <PhotoGalleryTab
+                  location={location}
+                  date={currentDate}
+                  ndviData={ndviData}
+                />
+              )}
+            </div>
+          </>
+        )}
       </div>
     </aside>
   )
