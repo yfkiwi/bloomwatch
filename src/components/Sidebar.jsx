@@ -6,21 +6,279 @@ import { getDataForDate, isPredictionDate } from '../services/dataService'
 import NDVIChart from './NDVIChart'
 import { useState, useEffect } from 'react'
 
+// Color function based on NDVI
+const getBloomColor = (ndvi) => {
+  if (ndvi < 0.08) return '#9ca3af';  // Gray - dormant
+  if (ndvi < 0.12) return '#86efac';  // Light green - emerging
+  if (ndvi < 0.18) return '#fbbf24';  // Yellow - blooming
+  return '#f8b5d1';                    // Soft pink - peak bloom
+};
+
+const getBloomStatusText = (ndvi) => {
+  if (ndvi < 0.08) return 'Dormant';
+  if (ndvi < 0.12) return 'Emerging';
+  if (ndvi < 0.18) return 'Blooming';
+  return 'Peak Bloom';
+};
+
+const MetricCard = ({ label, value, color }) => (
+  <div className="bg-white p-3 rounded-lg border-2 border-gray-100">
+    <div className="text-sm text-gray-600">{label}</div>
+    <div className={`text-2xl font-bold text-${color}-600 mt-1`}>{value}</div>
+  </div>
+);
+
+const SidebarContent = ({ selectedDate, locationData, location, metadata }) => {
+  const TODAY = new Date('2025-10-04');
+  const PREDICTION_END = new Date('2025-08-31');
+  const isHistorical = selectedDate <= TODAY;
+  const isPrediction = selectedDate > TODAY && selectedDate <= PREDICTION_END;
+  const isOutOfRange = selectedDate > PREDICTION_END;
+
+  if (isOutOfRange) {
+    return (
+      <div className="p-4 bg-orange-50 border-2 border-orange-200 rounded-lg">
+        <div className="flex items-start gap-3">
+          <span className="text-2xl">⚠️</span>
+          <div>
+            <h3 className="font-semibold text-orange-900">Prediction Unavailable</h3>
+            <p className="text-sm text-orange-700 mt-1">
+              ML forecasts available through August 2025
+            </p>
+            <button
+              onClick={() => {/* Reset to prediction end */}}
+              className="mt-2 px-3 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 text-sm"
+            >
+              View Latest Forecast (Aug 31)
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header with badge */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold">{metadata.fullName}</h2>
+        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+          isHistorical 
+            ? 'bg-green-100 text-green-700' 
+            : 'bg-orange-100 text-orange-700'
+        }`}>
+          {isHistorical ? '📊 Historical Data' : '🔮 ML Forecast'}
+        </span>
+      </div>
+
+      <div className="text-gray-600">
+        {new Date(selectedDate).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        })}
+      </div>
+
+      {/* Status Badge */}
+      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg ${
+        locationData?.ndvi >= 0.18 
+          ? 'bg-pink-100 text-pink-700'
+          : locationData?.ndvi >= 0.12
+          ? 'bg-yellow-100 text-yellow-700'
+          : 'bg-gray-100 text-gray-700'
+      }`}>
+        <span className="text-xl">
+          {locationData?.ndvi >= 0.18 ? '🌸' : locationData?.ndvi >= 0.12 ? '🌱' : '🏜️'}
+        </span>
+        <span className="font-semibold">{getBloomStatusText(locationData?.ndvi || 0)}</span>
+      </div>
+
+      {/* Metrics */}
+      <div className="grid grid-cols-2 gap-4">
+        {isHistorical ? (
+          <>
+            <MetricCard
+              label="NDVI"
+              value={(locationData?.ndvi || 0).toFixed(3)}
+              color="blue"
+            />
+            <MetricCard
+              label="Status"
+              value={getBloomStatusText(locationData?.ndvi || 0)}
+              color="green"
+            />
+          </>
+        ) : (
+          <>
+            <MetricCard
+              label="Bloom Probability"
+              value={`${((locationData?.bloom_prob || 0) * 100).toFixed(1)}%`}
+              color="orange"
+            />
+            <MetricCard
+              label="Predicted NDVI"
+              value={(locationData?.ndvi || 0).toFixed(3)}
+              color="blue"
+            />
+          </>
+        )}
+      </div>
+
+      {/* Environmental Data */}
+      {isPrediction && (
+        <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
+          <h4 className="font-medium text-orange-900 mb-2">Model Inputs</h4>
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-orange-700">GDD (Growing Degree Days):</span>
+              <span className="font-medium">{locationData?.GDD_day?.toFixed(1) || 'N/A'}°C</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-orange-700">Soil Moisture:</span>
+              <span className="font-medium">{((locationData?.soil_moisture || 0) * 100).toFixed(1)}%</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-orange-700">Precipitation:</span>
+              <span className="font-medium">{locationData?.precipitation_mm?.toFixed(1) || 'N/A'}mm</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NDVI Chart */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 mb-2">Bloom Progression</h3>
+        <NDVIChart locationId={location.id} highlightDate={selectedDate} />
+      </div>
+
+      {/* Peak Bloom Info - for historical data */}
+      {isHistorical && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+          <h3 className="text-xs font-semibold text-green-800 mb-2">Peak Bloom Timeline</h3>
+          <div className="text-xs text-gray-700 space-y-1">
+            <div className="flex justify-between">
+              <span>Alert Sent:</span>
+              <span className="font-medium">{location.alertDate}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Peak Bloom:</span>
+              <span className="font-medium">{location.peakBloomDate}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Advance Warning:</span>
+              <span className="font-medium">{getDaysAdvanceWarning(location.alertDate, location.peakBloomDate)} days</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Model Info (for predictions only) */}
+      {isPrediction && (
+        <div className="text-xs text-gray-500 p-3 bg-gray-50 rounded">
+          <div className="font-medium mb-1">ℹ️ Model Details</div>
+          <div>Algorithm: Random Forest</div>
+          <div>Training: 2015-2024 data</div>
+          <div>Features: GDD, Soil Moisture, Precipitation</div>
+        </div>
+      )}
+
+      {/* Viewing Tips - for historical data */}
+      {isHistorical && (
+        <>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">🌸 Viewing Tips</h3>
+            <p className="text-sm text-gray-600">{metadata.bestViewing}</p>
+          </div>
+
+          {/* Flower Types */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">Common Flowers</h3>
+            <div className="flex flex-wrap gap-2">
+              {location.flowerTypes.map(flower => (
+                <span 
+                  key={flower}
+                  className="px-3 py-1 bg-pink-100 text-pink-700 rounded-full text-xs"
+                >
+                  {flower}
+                </span>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Peak Bloom Alert Card - Show if peak bloom detected */}
+      {isHistorical && locationData?.ndvi >= 0.18 && (
+        <div className="bg-gradient-to-r from-pink-50/80 to-rose-50/80 border-2 border-pink-200/60 rounded-xl p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-2xl">🌸</span>
+            <div>
+              <h3 className="font-semibold text-pink-800">Peak Bloom Alert</h3>
+              <p className="text-sm text-pink-700">Peak viewing: {new Date(selectedDate).toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric' 
+              })}</p>
+            </div>
+          </div>
+          <button className="w-full bg-pink-400 text-white py-2 px-4 rounded-lg font-medium hover:bg-pink-500 transition-colors">
+            Plan Your Visit
+          </button>
+        </div>
+      )}
+
+      {/* Bloom Alert Card - Show if high probability (predictions) */}
+      {isPrediction && locationData?.bloom_pred === 1 && (locationData?.bloom_prob || 0) >= 60 && (
+        <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-200 rounded-xl p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-2xl">⚠️</span>
+            <div>
+              <h3 className="font-semibold text-orange-800">Bloom Alert</h3>
+              <p className="text-sm text-orange-700">Peak expected: {new Date(selectedDate).toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric' 
+              })}</p>
+            </div>
+          </div>
+          <button className="w-full bg-orange-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-orange-700 transition-colors">
+            Plan Your Visit
+          </button>
+        </div>
+      )}
+
+      {/* Notification Panel */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-blue-800 mb-3">Get Bloom Notifications</h3>
+        <div className="space-y-3">
+          <input 
+            type="email" 
+            placeholder="your@email.com" 
+            className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <button className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors">
+            Subscribe
+          </button>
+        </div>
+        <p className="text-xs text-gray-600 mt-2">
+          Get alerts when blooms are detected at your favorite locations
+        </p>
+      </div>
+    </div>
+  );
+};
+
 function Sidebar({ locationId, currentDate }) {
   const [dataPoint, setDataPoint] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [isPrediction, setIsPrediction] = useState(false)
 
   useEffect(() => {
     if (locationId && currentDate) {
       setIsLoading(true)
       getDataForDate(currentDate).then(result => {
         setDataPoint(result.data)
-        setIsPrediction(result.isPrediction)
         setIsLoading(false)
       })
     }
-  }, [currentDate])
+  }, [currentDate, locationId])
 
   if (!locationId) {
     return (
@@ -49,160 +307,21 @@ function Sidebar({ locationId, currentDate }) {
         <div className="text-center text-gray-500 mt-20">
           <div className="animate-spin text-4xl mb-4">⏳</div>
           <h3 className="text-lg font-semibold mb-2">Loading Data</h3>
-          <p className="text-sm">Fetching {isPrediction ? 'prediction' : 'historical'} data...</p>
+          <p className="text-sm">Fetching data...</p>
         </div>
       </aside>
     )
   }
-
-  // Handle prediction mode
-  if (isPrediction) {
-    return (
-      <aside className="w-96 bg-white border-l border-gray-200 overflow-y-auto">
-        <div className="p-6 space-y-6">
-          {/* Location Header */}
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">{metadata.fullName}</h2>
-            <p className="text-sm text-gray-600">{location.region}</p>
-            <div className="mt-2 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium inline-block">
-              🔮 Bloom Forecast
-            </div>
-          </div>
-
-          {/* Prediction Status */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Predicted Bloom Status</h3>
-            {dataPoint ? (
-              <div className="space-y-3">
-                <div className={`inline-block px-4 py-2 rounded-full font-medium ${
-                  dataPoint.bloom_pred === 1 
-                    ? 'bg-green-100 text-green-700 border-2 border-green-300' 
-                    : 'bg-gray-100 text-gray-700 border-2 border-gray-300'
-                }`}>
-                  {dataPoint.bloom_pred === 1 ? '🌸 Bloom Predicted' : '🌱 No Bloom Expected'}
-                </div>
-                <p className="text-sm text-gray-600">
-                  <strong>Bloom Probability:</strong> {(dataPoint.bloom_prob * 100).toFixed(1)}%
-                </p>
-                <p className="text-sm text-gray-600">
-                  <strong>Predicted NDVI:</strong> {dataPoint.ndvi.toFixed(2)}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <strong>Soil Moisture:</strong> {(dataPoint.soil_moisture * 100).toFixed(1)}%
-                </p>
-                <p className="text-sm text-gray-600">
-                  <strong>Precipitation:</strong> {dataPoint.precipitation_mm.toFixed(1)}mm
-                </p>
-              </div>
-            ) : (
-              <div className="text-sm text-gray-500 italic">
-                Prediction data not available for this date
-              </div>
-            )}
-          </div>
-
-          {/* Model Information */}
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-orange-800 mb-2">🤖 Our Model Details</h3>
-            <div className="space-y-1 text-sm text-gray-700">
-              <p><strong>Model Type:</strong> Gradient Boosting</p>
-              <p><strong>Features:</strong> GDD, Soil Moisture, Precipitation</p>
-              <p><strong>Training Data:</strong> 2017-2024 Historical Blooms</p>
-              <p><strong>Confidence:</strong> {dataPoint ? (dataPoint.bloom_prob * 100).toFixed(1) : 'N/A'}%</p>
-            </div>
-          </div>
-
-          {/* Forecast Disclaimer */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-blue-800 mb-2">⚠️ Forecast Disclaimer</h3>
-            <p className="text-xs text-gray-600">
-              This prediction is based on machine learning models trained on historical data. 
-              Actual bloom conditions may vary due to unforeseen weather patterns or environmental factors.
-            </p>
-          </div>
-        </div>
-      </aside>
-    )
-  }
-
-  // Historical mode (existing logic)
-  const status = getBloomStatus(dataPoint?.ndvi || 0)
-  const daysWarning = getDaysAdvanceWarning(location.alertDate, location.peakBloomDate)
 
   return (
     <aside className="w-96 bg-white border-l border-gray-200 overflow-y-auto">
-      <div className="p-6 space-y-6">
-        {/* Location Header */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">{metadata.fullName}</h2>
-          <p className="text-sm text-gray-600">{location.region}</p>
-          <div className="mt-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium inline-block">
-            📊 Historical Data
-          </div>
-        </div>
-
-        {/* Current Status */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Current Status</h3>
-          <div 
-            className="inline-block px-4 py-2 rounded-full font-medium"
-            style={{
-              backgroundColor: status.color + '20',
-              color: status.color,
-              border: `2px solid ${status.color}`
-            }}
-          >
-            {status.label}
-          </div>
-          <p className="text-sm text-gray-600 mt-2">
-            NDVI: {(dataPoint?.ndvi || 0).toFixed(2)} on {currentDate}
-          </p>
-        </div>
-
-        {/* NDVI Chart */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Bloom Progression</h3>
-          <NDVIChart locationId={locationId} highlightDate={currentDate} />
-        </div>
-
-        {/* Peak Bloom Info */}
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-green-800 mb-2">📅 Peak Bloom Information</h3>
-          <div className="space-y-1 text-sm">
-            <p><strong>Alert Sent:</strong> {location.alertDate}</p>
-            <p><strong>Peak Bloom:</strong> {location.peakBloomDate}</p>
-            <p><strong>Advance Warning:</strong> {daysWarning} days</p>
-          </div>
-        </div>
-
-        {/* Viewing Tips */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">🌸 Viewing Tips</h3>
-          <p className="text-sm text-gray-600">{metadata.bestViewing}</p>
-        </div>
-
-        {/* Flower Types */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Common Flowers</h3>
-          <div className="flex flex-wrap gap-2">
-            {location.flowerTypes.map(flower => (
-              <span 
-                key={flower}
-                className="px-3 py-1 bg-pink-100 text-pink-700 rounded-full text-xs"
-              >
-                {flower}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Mock Notification */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-blue-800 mb-2">🔔 Alert Preview</h3>
-          <p className="text-xs text-gray-600 italic">
-            "Bloom detected at {metadata.fullName}! Peak viewing expected around {location.peakBloomDate}."
-          </p>
-        </div>
+      <div className="p-6">
+        <SidebarContent 
+          selectedDate={currentDate}
+          locationData={dataPoint}
+          location={location}
+          metadata={metadata}
+        />
       </div>
     </aside>
   )

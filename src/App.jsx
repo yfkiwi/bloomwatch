@@ -6,28 +6,32 @@ import { getTodayDate } from './services/dataService'
 import './App.css'
 
 function App() {
-  const [currentDate, setCurrentDate] = useState(getTodayDate()) // Start at today's date
+  // Smart timeline - default to recent data (2024-2025)
+  const [currentDate, setCurrentDate] = useState('2024-01-01') // Start with recent data
   const [selectedLocation, setSelectedLocation] = useState(null)
+  const [showFullHistory, setShowFullHistory] = useState(false)
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <header className="bg-green-600 text-white shadow-lg z-10">
+      <header className="text-white shadow-lg z-10" style={{
+        background: 'linear-gradient(135deg, #f8b5d1, #f9a8d4)'
+      }}>
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <span className="text-3xl">🌸</span>
               <div>
                 <h1 className="text-2xl font-bold">BloomWatch</h1>
-                <p className="text-sm text-green-100">
+                <p className="text-sm text-pink-100">
                   Earth's Flowering Pulse - Historical Data & ML Predictions
                 </p>
               </div>
             </div>
             
-            {/* Mode Indicator */}
-            <div className="text-sm text-green-100">
-              Drag timeline to explore 2017-2025
+            {/* Use Case Indicator */}
+            <div className="text-sm text-pink-100">
+              Track California's wildflower blooms from 2017-2025
             </div>
           </div>
         </div>
@@ -44,7 +48,9 @@ function App() {
           />
           <TimeSlider 
             currentDate={currentDate} 
-            onChange={setCurrentDate} 
+            onChange={setCurrentDate}
+            showFullHistory={showFullHistory}
+            onToggleHistory={setShowFullHistory}
           />
         </div>
         {/* Sidebar */}

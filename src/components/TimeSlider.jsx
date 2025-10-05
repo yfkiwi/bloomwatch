@@ -1,215 +1,194 @@
 import { useState, useEffect } from 'react'
 import { isPredictionDate, getCutoffDate, getTodayDate } from '../services/dataService'
 
-function TimeSlider({ currentDate, onChange }) {
-  const startDate = new Date('2017-01-01')
-  const endDate = new Date('2025-12-31') // Extended to include full 2025 predictions
-  const cutoffDate = new Date(getCutoffDate())
-  const todayDate = new Date(getTodayDate())
+function TimeSlider({ currentDate, onChange, showFullHistory, onToggleHistory }) {
+  const TODAY = new Date('2025-10-04')
+  const PREDICTION_END = new Date('2025-08-31')
   
-  // Convert date to days since start
-  const dateToValue = (date) => {
-    const d = new Date(date)
-    return Math.floor((d - startDate) / (1000 * 60 * 60 * 24))
-  }
-  
-  // Convert days to date string
-  const valueToDate = (value) => {
-    const d = new Date(startDate)
-    d.setDate(d.getDate() + parseInt(value))
-    return d.toISOString().split('T')[0]
-  }
-  
-  const maxValue = dateToValue(endDate)
-  const currentValue = dateToValue(currentDate)
-  const cutoffValue = dateToValue(cutoffDate)
-  const todayValue = dateToValue(todayDate)
-
-  const handleChange = (e) => {
-    const newDate = valueToDate(e.target.value)
-    onChange(newDate)
-  }
-
-  const isCurrentlyPrediction = isPredictionDate(currentDate)
-  const modeColor = isCurrentlyPrediction ? 'orange' : 'green'
-  const modeIcon = isCurrentlyPrediction ? '🔮' : '📊'
-  const modeText = isCurrentlyPrediction ? 'Prediction Mode' : 'Historical Mode'
-
-  const handleDateInputChange = (e) => {
-    const newDate = e.target.value
-    if (newDate) {
-      onChange(newDate)
+  // Timeline range calculator
+  const getTimelineRange = () => {
+    if (showFullHistory) {
+      return {
+        start: new Date('2017-01-01'),
+        end: new Date('2025-12-31')
+      };
     }
-  }
+    return {
+      start: new Date('2024-01-01'),
+      end: new Date('2025-12-31')
+    };
+  };
 
-  const jumpToToday = () => {
-    onChange(getTodayDate())
-  }
+  const range = getTimelineRange()
+  const selectedDate = new Date(currentDate)
+  
+  // Helper functions
+  const changeDate = (days) => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + days);
+    
+    if (newDate >= range.start && newDate <= range.end) {
+      onChange(newDate.toISOString().split('T')[0]);
+    }
+  };
 
-  const jumpToPeak2017 = () => {
-    onChange('2017-03-12') // Peak bloom date from 2017
-  }
+  const getProgressPercent = () => {
+    const total = range.end - range.start;
+    const current = selectedDate - range.start;
+    return (current / total) * 100;
+  };
 
-  const jumpToCutoff = () => {
-    onChange(getCutoffDate())
-  }
+  const getTodayPosition = () => {
+    const total = range.end - range.start;
+    const current = TODAY - range.start;
+    return Math.max(0, Math.min(100, (current / total) * 100));
+  };
+
+  const toggleHistoricalView = () => {
+    onToggleHistory(!showFullHistory);
+    if (!showFullHistory) {
+      // Expanding to full history - jump to 2017 superbloom
+      onChange('2017-03-12');
+    } else {
+      // Collapsing to recent - reset to today
+      onChange(TODAY.toISOString().split('T')[0]);
+    }
+  };
+
+  const isHistorical = !isPredictionDate(currentDate);
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyPress = (e) => {
-      if (e.target.tagName === 'INPUT' && e.target.type === 'date') return
-      
-      const current = new Date(currentDate)
-      const oneDay = 24 * 60 * 60 * 1000
+      if (e.target.tagName === 'INPUT' && e.target.type === 'date') return;
       
       switch (e.key) {
         case 'ArrowLeft':
-          e.preventDefault()
-          const prevDay = new Date(current.getTime() - oneDay)
-          if (prevDay >= startDate) {
-            onChange(prevDay.toISOString().split('T')[0])
-          }
-          break
+          e.preventDefault();
+          changeDate(-1);
+          break;
         case 'ArrowRight':
-          e.preventDefault()
-          const nextDay = new Date(current.getTime() + oneDay)
-          if (nextDay <= endDate) {
-            onChange(nextDay.toISOString().split('T')[0])
-          }
-          break
+          e.preventDefault();
+          changeDate(1);
+          break;
         case 'Home':
-          e.preventDefault()
-          onChange('2017-01-01')
-          break
+          e.preventDefault();
+          onChange(range.start.toISOString().split('T')[0]);
+          break;
         case 'End':
-          e.preventDefault()
-          onChange('2025-12-31')
-          break
-        case 't':
-        case 'T':
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault()
-            jumpToCutoff()
-          }
-          break
+          e.preventDefault();
+          onChange(range.end.toISOString().split('T')[0]);
+          break;
       }
-    }
+    };
 
-    window.addEventListener('keydown', handleKeyPress)
-    return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [currentDate, onChange, startDate, endDate])
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [currentDate, onChange, range]);
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 bg-white border border-gray-300 rounded-lg p-4 shadow-xl z-[9999] pointer-events-auto">
-      {/* Header with date and mode */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <span className="text-lg font-semibold text-green-700 whitespace-nowrap">
-            📅 {new Date(currentDate).toLocaleDateString('en-US', { 
-              month: 'long', 
-              day: 'numeric', 
-              year: 'numeric' 
-            })}
-          </span>
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-            isCurrentlyPrediction 
-              ? 'bg-orange-100 text-orange-700 border border-orange-200' 
-              : 'bg-green-100 text-green-700 border border-green-200'
-          }`}>
-            {modeIcon} {modeText}
-          </span>
-        </div>
-        
-        {/* Quick navigation buttons */}
-        <div className="flex gap-2">
-          <button
-            onClick={jumpToPeak2017}
-            className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors"
-            title="Jump to 2017 Peak Bloom"
-          >
-            🏆 2017 Peak
-          </button>
-          <button
-            onClick={jumpToCutoff}
-            className="px-3 py-1 text-xs bg-yellow-100 text-yellow-700 rounded-full hover:bg-yellow-200 transition-colors"
-            title="Jump to Today"
-          >
-            📍 Today
-          </button>
-        </div>
-      </div>
-
-      {/* Main slider area */}
-      <div className="flex items-center gap-4">
-        {/* Date picker input */}
-        <div className="flex flex-col">
-          <label className="text-xs text-gray-500 mb-1">Exact Date</label>
-          <input
-            type="date"
-            value={currentDate}
-            onChange={handleDateInputChange}
-            min="2017-01-01"
-            max="2025-12-31"
-            className="text-sm px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-transparent"
-          />
-        </div>
-
-        {/* Compact slider */}
-        <div className="flex-1 relative max-w-md">
-          <input
-            type="range"
-            min="0"
-            max={maxValue}
-            value={currentValue}
-            onChange={handleChange}
-            className={`w-full h-4 rounded-lg appearance-none cursor-pointer transition-colors ${
-              isCurrentlyPrediction 
-                ? 'accent-orange-600 hover:accent-orange-700' 
-                : 'accent-green-600 hover:accent-green-700'
-            }`}
-            style={{
-              background: `linear-gradient(to right, 
-                #22c55e 0%, 
-                #22c55e ${(cutoffValue / maxValue) * 100}%, 
-                #f97316 ${(cutoffValue / maxValue) * 100}%, 
-                #f97316 100%)`
-            }}
-          />
+    <div className="fixed bottom-4 left-4 z-[9999] pointer-events-auto">
+      <div className="bg-white/70 backdrop-blur-sm border border-gray-200/30 rounded-2xl p-4 shadow-lg max-w-sm">
+        <div className="space-y-3">
           
-          {/* Today marker */}
-          <div 
-            className="absolute top-0 w-1 h-4 bg-red-500 rounded-full"
-            style={{ left: `${(todayValue / maxValue) * 100}%` }}
-            title="Today (Oct 4, 2025)"
-          />
-        </div>
+          {/* Date Display */}
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-lg">📅</span>
+            <input
+              type="date"
+              value={selectedDate.toISOString().split('T')[0]}
+              onChange={(e) => onChange(e.target.value)}
+              min={range.start.toISOString().split('T')[0]}
+              max={range.end.toISOString().split('T')[0]}
+              className="text-sm font-medium bg-transparent border-none cursor-pointer hover:bg-gray-50/50 rounded px-2 py-1 transition-colors"
+            />
+          </div>
 
-        {/* Year range display */}
-        <div className="flex flex-col items-center text-xs text-gray-600">
-          <span className="font-medium">2017-2025</span>
-          <span className="text-gray-400">9 years</span>
-        </div>
-      </div>
-      
-      {/* Footer with legend and instructions */}
-      <div className="mt-3 flex justify-between items-center text-xs text-gray-500">
-        <div className="flex flex-col">
-          <span>Drag slider or use date picker to navigate</span>
-          <span className="text-gray-400">Keyboard: ← → (day), Home/End (range), Ctrl+T (today)</span>
-        </div>
-        <div className="flex gap-4">
-          <span className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            Historical Data
-          </span>
-          <span className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-            ML Predictions
-          </span>
-          <span className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-            Today
-          </span>
+          {/* Navigation Controls */}
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => changeDate(-1)}
+              className="p-1.5 hover:bg-gray-100/50 rounded-lg transition-colors"
+              title="Previous Day (←)"
+            >
+              <span className="text-sm">◀</span>
+            </button>
+            
+            <button
+              onClick={() => changeDate(1)}
+              className="p-1.5 hover:bg-gray-100/50 rounded-lg transition-colors"
+              title="Next Day (→)"
+            >
+              <span className="text-sm">▶</span>
+            </button>
+          </div>
+
+          {/* Compact Timeline Slider */}
+          <div className="relative">
+            <input
+              type="range"
+              min={range.start.getTime()}
+              max={range.end.getTime()}
+              value={selectedDate.getTime()}
+              onChange={(e) => onChange(new Date(parseInt(e.target.value)).toISOString().split('T')[0])}
+              step={86400000}
+              className="w-full h-2 bg-gray-200/50 rounded-lg appearance-none cursor-pointer timeline-slider"
+              style={{
+                background: `linear-gradient(to right, 
+                  #f8b5d1 0%, 
+                  #f8b5d1 ${getProgressPercent()}%, 
+                  #e5e7eb ${getProgressPercent()}%, 
+                  #e5e7eb 100%)`
+              }}
+            />
+            
+            {/* Today Marker */}
+            <div 
+              className="absolute top-0 h-3 w-0.5 bg-orange-400 rounded-full"
+              style={{ left: `${getTodayPosition()}%` }}
+              title="Today"
+            />
+            
+            {/* Timeline Labels */}
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>{range.start.getFullYear()}</span>
+              <span className="text-orange-500 font-medium">Now</span>
+              <span>{range.end.getFullYear()}</span>
+            </div>
+          </div>
+
+          {/* Data type indicator */}
+          <div className={`px-3 py-1.5 rounded-full text-xs font-medium mx-auto w-fit ${
+            isHistorical 
+              ? 'bg-green-100/80 text-green-700' 
+              : 'bg-orange-100/80 text-orange-700'
+          }`}>
+            {isHistorical ? '📊 Historical' : '🔮 Forecast'}
+          </div>
+
+          {/* Quick Actions */}
+          <div className="flex gap-1 justify-center">
+            <button 
+              onClick={() => onChange('2017-03-12')}
+              className="px-2 py-1 bg-pink-100/80 text-pink-700 rounded-full text-xs hover:bg-pink-200/80 transition"
+            >
+              🌸 2017
+            </button>
+            <button 
+              onClick={() => onChange(TODAY.toISOString().split('T')[0])}
+              className="px-2 py-1 bg-gray-100/80 text-gray-700 rounded-full text-xs hover:bg-gray-200/80 transition"
+            >
+              📅 Today
+            </button>
+          </div>
+
+          {/* Expand/Collapse Button */}
+          <button
+            onClick={toggleHistoricalView}
+            className="w-full py-1.5 text-xs border border-dashed border-gray-300/50 rounded-lg text-gray-600 hover:border-pink-300/50 hover:text-pink-600 transition"
+          >
+            {showFullHistory ? '📅 Recent (2024-2025)' : '📊 Full History (2017-2025)'}
+          </button>
         </div>
       </div>
     </div>
