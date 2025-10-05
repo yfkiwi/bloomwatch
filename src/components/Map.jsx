@@ -214,18 +214,32 @@ const SmoothBloomHeatmap = ({ selectedDate, realLocations }) => {
     // Create heat layer - optimized for dynamic bloom colors
     if (heatData.length > 0) {
       console.log('Creating heatmap layer...');
+      
+      // Detect if we're in peak bloom period
+      const hasPeakBloom = allPoints.some(point => {
+        const bloomIntensity = getBloomIntensity(point.ndvi, selectedDate);
+        return bloomIntensity > 0.7; // Peak bloom threshold
+      });
+      
       heatLayerRef.current = L.heatLayer(heatData, {
-        radius: 60,          // Even larger radius for better coverage
-        blur: 30,            // Reduced blur for more visible effect
-        max: 1.6,            // Increased max for stronger colors (matches bloom intensity scale)
-        minOpacity: 0.15,    // Increased minimum opacity
-        gradient: {
-          0.0: 'rgba(254, 243, 199, 0)',      // Transparent pale yellow
-          0.2: 'rgba(254, 243, 199, 0.3)',    // Pale yellow (early greening)
-          0.4: 'rgba(253, 230, 138, 0.5)',    // Light yellow
-          0.6: 'rgba(251, 191, 36, 0.6)',     // Yellow-orange
-          0.8: 'rgba(251, 146, 60, 0.7)',     // Orange-pink
-          1.0: 'rgba(236, 72, 153, 0.8)'      // Hot pink (peak bloom)
+        radius: 60,
+        blur: 30,
+        max: 1.6,
+        minOpacity: 0.15,
+        gradient: hasPeakBloom ? {
+          // PINK GRADIENT for peak bloom periods
+          0.0: 'rgba(248, 181, 209, 0)',
+          0.3: 'rgba(248, 181, 209, 0.3)',
+          0.5: 'rgba(248, 181, 209, 0.5)',
+          0.7: 'rgba(240, 147, 196, 0.7)',
+          1.0: 'rgba(236, 72, 153, 0.85)'
+        } : {
+          // ORANGE/YELLOW GRADIENT for non-peak periods
+          0.0: 'rgba(254, 243, 199, 0)',
+          0.4: 'rgba(253, 230, 138, 0.5)',
+          0.6: 'rgba(251, 191, 36, 0.6)',
+          0.8: 'rgba(251, 146, 60, 0.7)',
+          1.0: 'rgba(251, 146, 60, 0.8)'
         }
       });
       
@@ -336,21 +350,6 @@ const RealLocationMarkers = ({ realLocations, selectedDate, onLocationClick }) =
                   mouseout: (e) => {
                     e.target.setStyle({ fillOpacity: 0 });
                   }
-                }}
-              />
-            )}
-
-            {/* Dynamic bloom overlay circle */}
-            {!isDisabled && isActive && (
-              <Circle
-                center={[location.lat, location.lng]}
-                radius={30000}
-                pathOptions={{
-                  fillColor: bloomColor,
-                  fillOpacity: bloomOpacity,
-                  color: bloomColor,
-                  weight: 1,
-                  opacity: bloomOpacity * 0.5
                 }}
               />
             )}

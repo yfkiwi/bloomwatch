@@ -442,7 +442,7 @@ button, a, [role="button"] {
 
 .bloom-status-hero.peak-bloom {
   background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
-  border: 2px solid #ec4899;
+  border: 2px dotted #ec4899;
 }
 
 .bloom-status-hero.blooming {
